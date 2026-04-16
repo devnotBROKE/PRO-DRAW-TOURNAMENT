@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Draw & Tournament Suite</title>
+    <meta name="description" content="The most trusted tournament & raffle generator platform. Create Swiss, Single Elimination, or League brackets automatically.">
+    <meta name="keywords" content="tournament, raffle, bracket, pool, billiards, generator">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Outfit', 'system-ui', 'sans-serif'] },
+            colors: {
+              dark: { 900: '#070B1A', 800: '#0D1330', 700: '#141D48', 600: '#1E2A5C', 500: '#2A3875' },
+              accent: { DEFAULT: '#42B4F4', light: '#6DC8F7', dark: '#2E8FD0' },
+              neon: { blue: '#3347C0', cyan: '#42B4F4', purple: '#5B6AD4', pink: '#F0A0D0' }
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body class="bg-dark-900 text-white font-sans antialiased min-h-screen">
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
