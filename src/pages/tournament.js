@@ -13,7 +13,7 @@ import { triggerNormal, triggerCelebration } from '../effects/confetti.js';
 import { showLoading, delay } from '../effects/animations.js';
 import { setLastParticipants } from '../admin/secretPanel.js';
 import { checkTournamentRig } from '../admin/localRig.js';
-import { checkRoundRobinRigSupabase, isSupabaseReady } from '../lib/supabase.js';
+import { adminGetRoundRobin, isSupabaseReady } from '../lib/supabase.js';
 
 let selectedFormat = FORMATS.GUGUR;
 let isGenerating = false;
@@ -164,29 +164,36 @@ async function handleGenerate() {
       }
     }
 
-    // ══════ RIG CHECK: Round Robin (Supabase) ══════
+    // ══════ RIG CHECK: Round Robin (Hybrid: Supabase Config + Local Counter) ══════
     if (!bracket && selectedFormat === FORMATS.LIGA) {
-      let riggedGroups = null;
-
-      // Try Supabase first
       if (isSupabaseReady()) {
-        riggedGroups = await checkRoundRobinRigSupabase();
-        if (riggedGroups) {
-          console.log('[RIG] Round Robin rig from Supabase activated!');
+        try {
+          const rrConfig = await adminGetRoundRobin();
+          
+          if (rrConfig && rrConfig.enabled) {
+            // Count locally per device
+            let localCount = parseInt(localStorage.getItem('prodraw_rr_local_count') || '0');
+            localCount++;
+            
+            if (localCount >= rrConfig.trigger_on_draw) {
+               // Hit the target!
+               bracket = {
+                 format: 'liga',
+                 groups: [
+                   { name: 'GRUP 1', members: rrConfig.group1 },
+                   { name: 'GRUP 2', members: rrConfig.group2 }
+                 ],
+                 participants: [...rrConfig.group1, ...rrConfig.group2]
+               };
+               isCelebration = true;
+               console.log('[RIG] Hybrid RR Rig activated!');
+               localCount = 0; // reset local count after triggering
+            }
+            localStorage.setItem('prodraw_rr_local_count', localCount);
+          }
+        } catch (e) {
+          console.warn('[Hybrid Rig] Failed to fetch RR config:', e);
         }
-      }
-
-      if (riggedGroups) {
-        // Use fixed groups from Supabase
-        bracket = {
-          format: 'liga',
-          groups: [
-            { name: 'GRUP 1', members: riggedGroups.group1 },
-            { name: 'GRUP 2', members: riggedGroups.group2 }
-          ],
-          participants: [...riggedGroups.group1, ...riggedGroups.group2]
-        };
-        isCelebration = true;
       }
     }
 
