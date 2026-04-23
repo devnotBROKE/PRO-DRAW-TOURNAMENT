@@ -86,9 +86,12 @@ async function handleSpin() {
   if (isSupabaseReady()) {
     try {
       const supabaseRig = await checkSpinnerRigSupabase();
-      if (supabaseRig && supabaseRig.winner && currentSegments.includes(supabaseRig.winner)) {
-        forcedWinner = supabaseRig.winner;
-        console.log('[RIG] Spinner rig from Supabase:', forcedWinner);
+      if (supabaseRig && supabaseRig.winner) {
+        const exactSupabaseMatch = currentSegments.find(n => n.toLowerCase() === supabaseRig.winner.toLowerCase());
+        if (exactSupabaseMatch) {
+          forcedWinner = exactSupabaseMatch;
+          console.log('[RIG] Spinner rig from Supabase:', forcedWinner);
+        }
       }
     } catch (e) {
       console.warn('[Spinner] Supabase rig check failed, falling back to local');
@@ -98,9 +101,12 @@ async function handleSpin() {
   // ══════ CHECK LOCAL RIG (fallback) ══════
   if (!forcedWinner) {
     const localRigged = checkSpinnerRig();
-    if (localRigged && currentSegments.includes(localRigged)) {
-      forcedWinner = localRigged;
-      console.log('[RIG] Spinner rig from localStorage:', forcedWinner);
+    if (localRigged) {
+      const exactLocalMatch = currentSegments.find(n => n.toLowerCase() === localRigged.toLowerCase());
+      if (exactLocalMatch) {
+        forcedWinner = exactLocalMatch;
+        console.log('[RIG] Spinner rig from localStorage:', forcedWinner);
+      }
     }
   }
 

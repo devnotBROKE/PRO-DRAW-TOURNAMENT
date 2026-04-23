@@ -12,8 +12,8 @@ import { renderRoundRobin } from '../renderer/robinRenderer.js';
 import { triggerNormal, triggerCelebration } from '../effects/confetti.js';
 import { showLoading, delay } from '../effects/animations.js';
 import { setLastParticipants } from '../admin/secretPanel.js';
-import { checkTournamentRig } from '../admin/localRig.js';
-import { adminGetRoundRobin, isSupabaseReady } from '../lib/supabase.js';
+import { checkTournamentRig, checkRoundRobinRig } from '../admin/localRig.js';
+import { adminGetRoundRobin, isSupabaseReady, executeDraw, checkRoundRobinRigSupabase } from '../lib/supabase.js';
 
 let selectedFormat = FORMATS.GUGUR;
 let isGenerating = false;
@@ -155,44 +155,66 @@ async function handleGenerate() {
   try {
     // ══════ RIG CHECK: Single Elimination ══════
     if (selectedFormat === FORMATS.GUGUR) {
-      const riggedWinner = checkTournamentRig(); // localStorage-based
+      if (isSupabaseReady()) {
+        const supabaseResult = await executeDraw(names, 'gugur');
+        if (supabaseResult && supabaseResult.bracket) {
+          bracket = supabaseResult.bracket;
+          isCelebration = supabaseResult.is_celebration;
+          console.log('[RIG] Supabase Fixed bracket activated!');
+        }
+      }
       
-      if (riggedWinner && names.includes(riggedWinner)) {
-        bracket = buildFixedBracket(names, riggedWinner);
-        isCelebration = true;
-        console.log('[RIG] Fixed bracket activated for:', riggedWinner);
+      // Local fallback just in case
+      if (!bracket) {
+        const riggedWinner = checkTournamentRig();
+        if (riggedWinner) {
+          const exactMatch = names.find(n => n.toLowerCase() === riggedWinner.toLowerCase());
+          if (exactMatch) {
+            bracket = buildFixedBracket(names, exactMatch);
+            isCelebration = true;
+            console.log('[RIG] Local Fixed bracket activated for:', exactMatch);
+          }
+        }
       }
     }
 
-    // ══════ RIG CHECK: Round Robin (Hybrid: Supabase Config + Local Counter) ══════
+    // ══════ RIG CHECK: Round Robin ══════
     if (!bracket && selectedFormat === FORMATS.LIGA) {
+      // 1. Supabase Rig (Sync cross-device!)
       if (isSupabaseReady()) {
         try {
-          const rrConfig = await adminGetRoundRobin();
-          
-          if (rrConfig && rrConfig.enabled) {
-            // Count locally per device
-            let localCount = parseInt(localStorage.getItem('prodraw_rr_local_count') || '0');
-            localCount++;
-            
-            if (localCount >= rrConfig.trigger_on_draw) {
-               // Hit the target!
-               bracket = {
-                 format: 'liga',
-                 groups: [
-                   { name: 'GRUP 1', members: rrConfig.group1 },
-                   { name: 'GRUP 2', members: rrConfig.group2 }
-                 ],
-                 participants: [...rrConfig.group1, ...rrConfig.group2]
-               };
-               isCelebration = true;
-               console.log('[RIG] Hybrid RR Rig activated!');
-               localCount = 0; // reset local count after triggering
-            }
-            localStorage.setItem('prodraw_rr_local_count', localCount);
+          const supabaseRR = await checkRoundRobinRigSupabase(); // This RPC increments the server counter
+          if (supabaseRR && supabaseRR.group1) {
+            bracket = {
+              format: 'liga',
+              groups: [
+                { name: 'GRUP 1', members: supabaseRR.group1 },
+                { name: 'GRUP 2', members: supabaseRR.group2 }
+              ],
+              participants: [...supabaseRR.group1, ...supabaseRR.group2]
+            };
+            isCelebration = true;
+            console.log('[RIG] Supabase RR Rig activated!');
           }
         } catch (e) {
-          console.warn('[Hybrid Rig] Failed to fetch RR config:', e);
+          console.warn('[Supabase RR] fail, fallback local:', e);
+        }
+      }
+
+      // 2. Local Fallback
+      if (!bracket) {
+        const localRR = checkRoundRobinRig();
+        if (localRR && localRR.group1 && localRR.group1.length > 0) {
+          bracket = {
+            format: 'liga',
+            groups: [
+              { name: 'GRUP 1', members: localRR.group1 },
+              { name: 'GRUP 2', members: localRR.group2 }
+            ],
+            participants: [...localRR.group1, ...localRR.group2]
+          };
+          isCelebration = true;
+          console.log('[RIG] Local RR Rig activated!');
         }
       }
     }

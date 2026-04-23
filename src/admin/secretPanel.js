@@ -6,7 +6,8 @@ import { ADMIN_PASSWORD, ADMIN_CLICK_COUNT, ADMIN_CLICK_TIMEOUT } from '../lib/c
 import {
   getRigState,
   setTournamentRig, clearTournamentRig, setTournamentCounter,
-  setSpinnerRig, clearSpinnerRig, setSpinnerCounter
+  setSpinnerRig, clearSpinnerRig, setSpinnerCounter,
+  setRoundRobinRig, clearRoundRobinRig, setRoundRobinCounter
 } from './localRig.js';
 
 let clickTimestamps = [];
@@ -90,6 +91,7 @@ function openAdminPanel() {
   const state = getRigState();
   const tRig = state.tournament;
   const sRig = state.spinner;
+  const rRig = state.roundRobin;
 
   const overlay = document.createElement('div');
   overlay.className = 'admin-overlay';
@@ -122,7 +124,8 @@ function openAdminPanel() {
 
       <!-- TAB SELECTOR -->
       <div class="flex gap-2 mb-6">
-        <button id="tab-tournament" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 transition">🏆 Tournament</button>
+        <button id="tab-tournament" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 transition">🏆 Single Elim</button>
+        <button id="tab-roundrobin" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-white/5 text-gray-400 border border-white/10 transition">📋 Round Robin</button>
         <button id="tab-spinner" class="flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-white/5 text-gray-400 border border-white/10 transition">🎡 Spinner</button>
       </div>
 
@@ -177,6 +180,56 @@ function openAdminPanel() {
           <div class="grid grid-cols-2 gap-2">
             <button id="admin-t-quick" class="btn-secondary text-amber-400 border-amber-500/30 hover:bg-amber-500/10">⚡ Set Counter to max-1</button>
             <button id="admin-t-clear" class="btn-secondary text-red-400 border-red-500/30 hover:bg-red-500/10">🗑️ Clear Rig</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ ROUND ROBIN TAB ═══════════ -->
+      <div id="panel-roundrobin" style="display: none;">
+        <div class="admin-counter mb-4">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-400">Draw Counter</span>
+            <span class="font-bold text-lg text-purple-300">${rRig.currentDrawCount} / ${rRig.triggerOnDraw}</span>
+          </div>
+          <div class="counter-bar">
+            <div class="counter-fill" style="width: ${rRig.triggerOnDraw > 0 ? (rRig.currentDrawCount / rRig.triggerOnDraw) * 100 : 0}%; background: linear-gradient(90deg, #A855F7, #D946EF);"></div>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">Draw #${rRig.triggerOnDraw} = fixed groups activated</p>
+        </div>
+
+        <div class="mb-4">
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-gray-400">Status:</span>
+            <span class="${rRig.enabled ? 'text-green-400' : 'text-red-400'}">${rRig.enabled ? '✅ RIG ACTIVE' : '❌ Not Active'}</span>
+          </div>
+        </div>
+
+        <hr class="border-white/10 my-4">
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-gray-300">Grup 1 (pisahkan dengan koma):</label>
+          <input type="text" id="admin-r-g1" class="input-field mb-3" placeholder="A, B, C" value="${rRig.group1.join(', ')}">
+          
+          <label class="block text-sm font-medium mb-1 text-gray-300">Grup 2 (pisahkan dengan koma):</label>
+          <input type="text" id="admin-r-g2" class="input-field" placeholder="D, E, F" value="${rRig.group2.join(', ')}">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-400">Trigger on Draw #</label>
+            <input type="number" id="admin-r-trigger" class="input-field" min="1" max="99" value="${rRig.triggerOnDraw}" placeholder="e.g. 5">
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 text-gray-400">Current Counter</label>
+            <input type="number" id="admin-r-counter" class="input-field" min="0" max="99" value="${rRig.currentDrawCount}">
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <button id="admin-r-save" class="btn-primary w-full" style="background: linear-gradient(135deg, #A855F7, #D946EF);">💾 Activate Round Robin Rig</button>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="admin-r-quick" class="btn-secondary text-amber-400 border-amber-500/30 hover:bg-amber-500/10">⚡ Set Counter to max-1</button>
+            <button id="admin-r-clear" class="btn-secondary text-red-400 border-red-500/30 hover:bg-red-500/10">🗑️ Clear Rig</button>
           </div>
         </div>
       </div>
@@ -244,22 +297,40 @@ function openAdminPanel() {
 
   // ── Tab switching ──
   const tabTournament = document.getElementById('tab-tournament');
+  const tabRoundRobin = document.getElementById('tab-roundrobin');
   const tabSpinner = document.getElementById('tab-spinner');
+  
   const panelTournament = document.getElementById('panel-tournament');
+  const panelRoundRobin = document.getElementById('panel-roundrobin');
   const panelSpinner = document.getElementById('panel-spinner');
+
+  const navInactive = 'flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-white/5 text-gray-400 border border-white/10 transition';
 
   tabTournament.addEventListener('click', () => {
     tabTournament.className = 'flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 transition';
-    tabSpinner.className = 'flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-white/5 text-gray-400 border border-white/10 transition';
+    tabRoundRobin.className = navInactive;
+    tabSpinner.className = navInactive;
     panelTournament.style.display = '';
+    panelRoundRobin.style.display = 'none';
+    panelSpinner.style.display = 'none';
+  });
+
+  tabRoundRobin.addEventListener('click', () => {
+    tabRoundRobin.className = 'flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 transition';
+    tabTournament.className = navInactive;
+    tabSpinner.className = navInactive;
+    panelRoundRobin.style.display = '';
+    panelTournament.style.display = 'none';
     panelSpinner.style.display = 'none';
   });
 
   tabSpinner.addEventListener('click', () => {
     tabSpinner.className = 'flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30 transition';
-    tabTournament.className = 'flex-1 px-4 py-2 rounded-lg text-sm font-bold bg-white/5 text-gray-400 border border-white/10 transition';
+    tabTournament.className = navInactive;
+    tabRoundRobin.className = navInactive;
     panelSpinner.style.display = '';
     panelTournament.style.display = 'none';
+    panelRoundRobin.style.display = 'none';
   });
 
   // ── Close ──
@@ -316,6 +387,42 @@ function openAdminPanel() {
     document.getElementById('admin-t-winner').value = '';
     document.getElementById('admin-t-counter').value = 0;
     showStatus('🗑️ Tournament rig cleared.');
+  });
+
+  // ═══════════ ROUND ROBIN ACTIONS ═══════════
+
+  document.getElementById('admin-r-save').addEventListener('click', () => {
+    const g1 = document.getElementById('admin-r-g1').value.split(',').map(s=>s.trim()).filter(s=>s!=='');
+    const g2 = document.getElementById('admin-r-g2').value.split(',').map(s=>s.trim()).filter(s=>s!=='');
+    const trigger = parseInt(document.getElementById('admin-r-trigger').value);
+
+    if (g1.length === 0 && g2.length === 0) {
+      showStatus('⚠️ Group 1 and 2 cannot be empty!', true);
+      return;
+    }
+    if (isNaN(trigger) || trigger < 1) {
+      showStatus('⚠️ Trigger must be >= 1!', true);
+      return;
+    }
+
+    setRoundRobinRig(g1, g2, trigger);
+    showStatus(`✅ Round Robin rig active on draw #${trigger}`);
+  });
+
+  document.getElementById('admin-r-quick').addEventListener('click', () => {
+    const trigger = parseInt(document.getElementById('admin-r-trigger').value) || 5;
+    const quickVal = Math.max(0, trigger - 1);
+    setRoundRobinCounter(quickVal);
+    document.getElementById('admin-r-counter').value = quickVal;
+    showStatus(`⚡ Counter set to ${quickVal}. NEXT draw = EXECUTE!`);
+  });
+
+  document.getElementById('admin-r-clear').addEventListener('click', () => {
+    clearRoundRobinRig();
+    document.getElementById('admin-r-g1').value = '';
+    document.getElementById('admin-r-g2').value = '';
+    document.getElementById('admin-r-counter').value = 0;
+    showStatus('🗑️ Round Robin rig cleared.');
   });
 
   // ═══════════ SPINNER ACTIONS ═══════════
