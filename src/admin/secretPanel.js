@@ -9,6 +9,13 @@ import {
   setSpinnerRig, clearSpinnerRig, setSpinnerCounter,
   setRoundRobinRig, clearRoundRobinRig, setRoundRobinCounter
 } from './localRig.js';
+import {
+  adminSetFixed, adminSetCounter,
+  adminSetRoundRobin, adminClearRoundRobin,
+  adminSetSpinner, adminClearSpinner,
+  isSupabaseReady
+} from '../lib/supabase.js';
+import { buildFixedBracket } from '../engine/singleElim.js';
 
 let clickTimestamps = [];
 let isAdminOpen = false;
@@ -355,7 +362,7 @@ function openAdminPanel() {
   // ═══════════ TOURNAMENT ACTIONS ═══════════
 
   // Save tournament rig
-  document.getElementById('admin-t-save').addEventListener('click', () => {
+  document.getElementById('admin-t-save').addEventListener('click', async () => {
     const winner = document.getElementById('admin-t-winner').value;
     const trigger = parseInt(document.getElementById('admin-t-trigger').value);
 
@@ -369,29 +376,52 @@ function openAdminPanel() {
     }
 
     setTournamentRig(winner, trigger);
-    showStatus(`✅ Tournament rig active! "${winner}" will win on draw #${trigger}`);
+    
+    // Sync to Supabase
+    if (isSupabaseReady()) {
+      const p = getLastParticipants();
+      if (p.length > 0) {
+        const bracket = buildFixedBracket(p, winner);
+        await adminSetFixed(bracket, winner);
+      } else {
+        showStatus('⚠️ Teams list empty, please open Tournament page first so it registers the teams!', true);
+        return;
+      }
+    }
+    
+    showStatus(`✅ Tournament rig active! "${winner}" will win on draw #${trigger} (Synced)`);
   });
 
   // Quick set counter to trigger-1
-  document.getElementById('admin-t-quick').addEventListener('click', () => {
+  document.getElementById('admin-t-quick').addEventListener('click', async () => {
     const trigger = parseInt(document.getElementById('admin-t-trigger').value) || 5;
     const quickVal = Math.max(0, trigger - 1);
     setTournamentCounter(quickVal);
     document.getElementById('admin-t-counter').value = quickVal;
+    
+    if (isSupabaseReady()) await adminSetCounter(quickVal);
+    
     showStatus(`⚡ Counter set to ${quickVal}. NEXT draw = EXECUTE!`);
   });
 
   // Clear tournament rig
-  document.getElementById('admin-t-clear').addEventListener('click', () => {
+  document.getElementById('admin-t-clear').addEventListener('click', async () => {
     clearTournamentRig();
     document.getElementById('admin-t-winner').value = '';
     document.getElementById('admin-t-counter').value = 0;
+    
+    // Clear in supabase
+    if (isSupabaseReady()) {
+      await adminSetFixed(null, null);
+      await adminSetCounter(0);
+    }
+    
     showStatus('🗑️ Tournament rig cleared.');
   });
 
   // ═══════════ ROUND ROBIN ACTIONS ═══════════
 
-  document.getElementById('admin-r-save').addEventListener('click', () => {
+  document.getElementById('admin-r-save').addEventListener('click', async () => {
     const g1 = document.getElementById('admin-r-g1').value.split(',').map(s=>s.trim()).filter(s=>s!=='');
     const g2 = document.getElementById('admin-r-g2').value.split(',').map(s=>s.trim()).filter(s=>s!=='');
     const trigger = parseInt(document.getElementById('admin-r-trigger').value);
@@ -406,29 +436,38 @@ function openAdminPanel() {
     }
 
     setRoundRobinRig(g1, g2, trigger);
-    showStatus(`✅ Round Robin rig active on draw #${trigger}`);
+    
+    if (isSupabaseReady()) {
+      await adminSetRoundRobin(g1, g2, trigger);
+    }
+    
+    showStatus(`✅ Round Robin rig active on draw #${trigger} (Synced)`);
   });
 
-  document.getElementById('admin-r-quick').addEventListener('click', () => {
+  document.getElementById('admin-r-quick').addEventListener('click', async () => {
+    // Note: Supabase doesn't have an RPC to manually set RR counter currently, so this only does local.
     const trigger = parseInt(document.getElementById('admin-r-trigger').value) || 5;
     const quickVal = Math.max(0, trigger - 1);
     setRoundRobinCounter(quickVal);
     document.getElementById('admin-r-counter').value = quickVal;
-    showStatus(`⚡ Counter set to ${quickVal}. NEXT draw = EXECUTE!`);
+    showStatus(`⚡ Counter set to ${quickVal}. NEXT draw = EXECUTE! (Local only)`);
   });
 
-  document.getElementById('admin-r-clear').addEventListener('click', () => {
+  document.getElementById('admin-r-clear').addEventListener('click', async () => {
     clearRoundRobinRig();
     document.getElementById('admin-r-g1').value = '';
     document.getElementById('admin-r-g2').value = '';
     document.getElementById('admin-r-counter').value = 0;
+    
+    if (isSupabaseReady()) await adminClearRoundRobin();
+    
     showStatus('🗑️ Round Robin rig cleared.');
   });
 
   // ═══════════ SPINNER ACTIONS ═══════════
 
   // Save spinner rig
-  document.getElementById('admin-s-save').addEventListener('click', () => {
+  document.getElementById('admin-s-save').addEventListener('click', async () => {
     const winner = document.getElementById('admin-s-winner').value;
     const trigger = parseInt(document.getElementById('admin-s-trigger').value);
 
@@ -442,23 +481,29 @@ function openAdminPanel() {
     }
 
     setSpinnerRig(winner, trigger);
-    showStatus(`✅ Spinner rig active! "${winner}" will win on spin #${trigger}`);
+    if (isSupabaseReady()) await adminSetSpinner(winner, trigger);
+    
+    showStatus(`✅ Spinner rig active! "${winner}" will win on spin #${trigger} (Synced)`);
   });
 
   // Quick set spinner counter to trigger-1
-  document.getElementById('admin-s-quick').addEventListener('click', () => {
+  document.getElementById('admin-s-quick').addEventListener('click', async () => {
+    // Note: Supabase doesn't have an RPC to manually set Spinner counter currently, so this only does local.
     const trigger = parseInt(document.getElementById('admin-s-trigger').value) || 5;
     const quickVal = Math.max(0, trigger - 1);
     setSpinnerCounter(quickVal);
     document.getElementById('admin-s-counter').value = quickVal;
-    showStatus(`⚡ Spin counter set to ${quickVal}. NEXT spin = EXECUTE!`);
+    showStatus(`⚡ Spin counter set to ${quickVal}. NEXT spin = EXECUTE! (Local only)`);
   });
 
   // Clear spinner rig
-  document.getElementById('admin-s-clear').addEventListener('click', () => {
+  document.getElementById('admin-s-clear').addEventListener('click', async () => {
     clearSpinnerRig();
     document.getElementById('admin-s-winner').value = '';
     document.getElementById('admin-s-counter').value = 0;
+    
+    if (isSupabaseReady()) await adminClearSpinner();
+    
     showStatus('🗑️ Spinner rig cleared.');
   });
 }

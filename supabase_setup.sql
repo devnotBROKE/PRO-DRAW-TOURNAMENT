@@ -62,9 +62,9 @@ VALUES (
   5,      -- ← TRIGGER: Fixed di draw ke-5 (setiap kelipatan 5)
   0,      -- current_draw_count: jangan diubah, reset otomatis
   -- ↓↓↓ EDIT GRUP 1 DI SINI ↓↓↓
-  '["KOMPI 4", "KOMPI 3", "KOMPI 1"]'::JSONB,
+  '["KOMPI 4", "KOMPI 1", "KOMPI 2"]'::JSONB,
   -- ↓↓↓ EDIT GRUP 2 DI SINI ↓↓↓
-  '["KOMPI 2", "STAF BATALYON", "KOMPI 5"]'::JSONB
+  '["KOMPI 5", "KOMPI 3", "STAF BATALYON"]'::JSONB
 )
 ON CONFLICT (id) DO UPDATE SET
   enabled          = EXCLUDED.enabled,
@@ -351,8 +351,8 @@ ALTER TABLE spinner_config ENABLE ROW LEVEL SECURITY;
 -- ═══════════════════════════════════════════════════════════════════
 -- ✅ RINGKASAN KONFIGURASI AKTIF:
 --
---  GRUP 1 : KOMPI 4, KOMPI 3, KOMPI 1
---  GRUP 2 : KOMPI 2, STAF BATALYON, KOMPI 5
+--  GRUP 1 : KOMPI 4, KOMPI 1, KOMPI 2
+--  GRUP 2 : KOMPI 5, KOMPI 3, STAF BATALYON
 --
 --  POLA   : Draw ke-5, 10, 15, 20... → FIXED ke grup di atas
 --           Draw 1,2,3,4 = random biasa
